@@ -36,7 +36,7 @@ def test_extract_packets_resyncs_and_keeps_partial_tail():
     buffer = bytearray(b"junk" + good + noise)
     packets = extract_packets(buffer)
     assert len(packets) == 1
-    assert buffer[:3] == MAGIC[:3]
+    assert bytes(buffer) == noise
 
 
 def test_replay_two_frames(tmp_path: Path):

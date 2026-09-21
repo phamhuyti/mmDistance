@@ -13,9 +13,8 @@ def test_cluster_merges_nearby_car_points():
         Detection(x=7.0, y=9.0, z=0.2, vr=0.0, snr_db=10),
     ]
     clusters = cluster_detections(dets, ClusterConfig(eps_m=1.2, min_points=1))
-    assert len(clusters) == 2
-    car = min(clusters, key=lambda item: item.range_m)
-    assert car.n_points == 2
+    assert sorted(item.n_points for item in clusters) == [1, 2]
+    car = max(clusters, key=lambda item: item.n_points)
     assert 11.5 < car.y < 12.5
 
 
