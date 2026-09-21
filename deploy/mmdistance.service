@@ -1,0 +1,19 @@
+[Unit]
+Description=mmDistance front-range radar logger
+After=local-fs.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/mmDistance
+ExecStart=/usr/bin/python3 -m mmdistance --config /home/pi/mmDistance/configs/default.toml live
+Restart=always
+RestartSec=3
+Nice=5
+
+# Keep logs in the journal; point csv/jsonl at a USB disk in default.toml if needed.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

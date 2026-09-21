@@ -1,0 +1,43 @@
+# Runtime gates and I/O. Chirp timing itself lives in the radar .cfg, not here.
+
+[radar]
+cli_port = "/dev/radar-cli"
+data_port = "/dev/radar-data"
+cli_baud = 115200
+data_baud = 921600
+cfg_path = "configs/profile.cfg.example"
+cfg_line_timeout_s = 0.4
+
+[filter]
+# Software lane only — AOP FoV stays ~120°. This does not raise SNR/range.
+range_min_m = 1.0
+range_max_m = 40.0
+azimuth_max_deg = 12.0
+elevation_min_deg = -6.0
+elevation_max_deg = 8.0
+snr_min_db = 8.0
+require_in_front = true
+
+[cluster]
+eps_m = 1.5
+min_points = 1
+
+[tracker]
+gate_m = 2.5
+max_misses = 5
+min_hits = 3
+process_var_range = 1.0
+process_var_vr = 2.0
+meas_var_range = 0.25
+meas_var_vr = 0.5
+default_dt = 0.05
+
+[ego]
+# Set to vehicle speed (m/s) when a GPS/IMU feed exists. 0 = static / parking-lot tests.
+speed_mps = 0.0
+static_vr_tol_mps = 0.8
+
+[output]
+csv_path = ""
+jsonl_path = ""
+print_primary = true
