@@ -11,6 +11,18 @@ MAX_PACKET_LEN = 65_536
 TLV_DETECTED_POINTS = 1
 TLV_SIDE_INFO = 7
 
+TLV_NAMES = {
+    1: "Detected Points (x,y,z,vr float32)",
+    2: "Range profile",
+    3: "Noise profile",
+    4: "Azimuth heatmap",
+    5: "Range-Doppler heatmap",
+    6: "Statistics",
+    7: "Side info (SNR, noise) 0.1 dB",
+    8: "Azimuth/elevation heatmap (AOP/ODS)",
+    9: "Temperature stats",
+}
+
 
 class ParseError(ValueError):
     pass
@@ -42,25 +54,16 @@ def extract_packets(buffer: bytearray) -> list[bytes]:
 
 def iter_packets(blob: bytes) -> list[bytes]:
     buffer = bytearray(blob)
-    packets = extract_packets(buffer)
-    return packets
+    return extract_packets(buffer)
 
 
 def parse_frame(packet: bytes) -> RadarFrame:
-    if len(packet) < HEADER_LEN or packet[:8] != MAGIC:
-        raise ParseError("missing mmWave magic word or short header")
-
-    version, total, platform, frame_number, cpu_cycles, n_obj, n_tlv, subframe = struct.unpack_from(
-        "<8I", packet, 8
-    )
-    if total < HEADER_LEN or total > len(packet):
-        raise ParseError(f"invalid packet length {total}")
-
+    header = parse_header(packet)
     points: list[tuple[float, float, float, float]] = []
     snrs: list[float] = []
     noises: list[float] = []
     offset = HEADER_LEN
-    for _ in range(n_tlv):
+    for _ in range(header["num_tlvs"]):
         if offset + 8 > len(packet):
             break
         tlv_type, tlv_len = struct.unpack_from("<II", packet, offset)
@@ -77,7 +80,7 @@ def parse_frame(packet: bytes) -> RadarFrame:
                 noises.append(noise_raw / 10.0)
 
     detections = []
-    count = n_obj if n_obj > 0 else len(points)
+    count = header["num_obj"] if header["num_obj"] > 0 else len(points)
     for index in range(min(count, len(points))):
         x, y, z, vr = points[index]
         detections.append(
@@ -92,14 +95,83 @@ def parse_frame(packet: bytes) -> RadarFrame:
         )
 
     return RadarFrame(
-        frame_number=frame_number,
+        frame_number=header["frame_number"],
         detections=detections,
-        platform=platform,
-        version=version,
-        num_tlvs=n_tlv,
-        subframe=subframe,
-        cpu_cycles=cpu_cycles,
+        platform=header["platform"],
+        version=header["version"],
+        num_tlvs=header["num_tlvs"],
+        subframe=header["subframe"],
+        cpu_cycles=header["cpu_cycles"],
     )
+
+
+def parse_header(packet: bytes) -> dict[str, int]:
+    if len(packet) < HEADER_LEN or packet[:8] != MAGIC:
+        raise ParseError("missing mmWave magic word or short header")
+    version, total, platform, frame_number, cpu_cycles, n_obj, n_tlv, subframe = struct.unpack_from(
+        "<8I", packet, 8
+    )
+    if total < HEADER_LEN or total > len(packet):
+        raise ParseError(f"invalid packet length {total}")
+    return {
+        "version": version,
+        "total": total,
+        "platform": platform,
+        "frame_number": frame_number,
+        "cpu_cycles": cpu_cycles,
+        "num_obj": n_obj,
+        "num_tlvs": n_tlv,
+        "subframe": subframe,
+    }
+
+
+def describe_packet(packet: bytes) -> str:
+    """Human-readable walkthrough of one OOB UART frame (for learning)."""
+    header = parse_header(packet)
+    lines = [
+        f"magic              {packet[:8].hex(' ')}  (luôn là 02 01 04 03 06 05 08 07)",
+        f"version            0x{header['version']:08x}",
+        f"totalPacketLen     {header['total']} bytes (kể cả pad 32-byte)",
+        f"platform           0x{header['platform']:x}",
+        f"frameNumber        {header['frame_number']}",
+        f"timeCpuCycles      {header['cpu_cycles']}",
+        f"numDetectedObj     {header['num_obj']}",
+        f"numTLVs            {header['num_tlvs']}",
+        f"subFrameNumber     {header['subframe']}",
+        "",
+    ]
+    offset = HEADER_LEN
+    for tlv_index in range(header["num_tlvs"]):
+        if offset + 8 > len(packet):
+            lines.append(f"TLV #{tlv_index}: header bị cắt")
+            break
+        tlv_type, tlv_len = struct.unpack_from("<II", packet, offset)
+        name = TLV_NAMES.get(tlv_type, "unknown")
+        lines.append(f"TLV #{tlv_index}  type={tlv_type} ({name})  length={tlv_len}")
+        payload = packet[offset + 8 : offset + 8 + tlv_len]
+        if tlv_type == TLV_DETECTED_POINTS:
+            for obj in range(len(payload) // 16):
+                x, y, z, vr = struct.unpack_from("<4f", payload, obj * 16)
+                rng = (x * x + y * y + z * z) ** 0.5
+                lines.append(
+                    f"  obj{obj:02d}  x={x:7.3f}  y={y:7.3f}  z={z:7.3f}  "
+                    f"vr={vr:7.3f}  range={rng:7.3f}"
+                )
+        elif tlv_type == TLV_SIDE_INFO:
+            for obj in range(len(payload) // 4):
+                snr, noise = struct.unpack_from("<hh", payload, obj * 4)
+                lines.append(
+                    f"  obj{obj:02d}  snr={snr / 10:.1f} dB  noise={noise / 10:.1f} dB "
+                    f"(raw int16 / 10)"
+                )
+        else:
+            preview = payload[:16].hex(" ")
+            lines.append(f"  payload[{tlv_len} bytes] head={preview}")
+        offset += 8 + tlv_len
+    pad = len(packet) - offset
+    if pad:
+        lines.append(f"padding            {pad} bytes (sao cho tổng chia hết 32)")
+    return "\n".join(lines)
 
 
 def encode_frame(

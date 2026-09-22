@@ -10,6 +10,9 @@ dist/
 build/
 *.egg-info/
 logs/
+captures/
+*.db
 *.bin
+!examples/*.bin
 .coverage
 htmlcov/

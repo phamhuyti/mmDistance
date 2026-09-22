@@ -1,5 +1,8 @@
 # Kế hoạch dự án: Đo khoảng cách xe phía trước bằng AWR6843AOPEVM + Raspberry Pi
 
+> Tài liệu học + code hiện tại: [docs/index.md](docs/index.md) và `src/mmdistance/`. File này giữ nguyên kế hoạch gốc.
+
+
 ## 0. Khung sườn & giả định cần chốt trước
 
 Trước khi bắt tay làm, cần thống nhất rõ để tránh làm sai hướng:

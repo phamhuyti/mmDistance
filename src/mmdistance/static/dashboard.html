@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mmDistance dashboard</title>
+  <style>
+    :root { --bg:#0f1419; --card:#1a2330; --text:#e8eef5; --muted:#8aa0b8; --ok:#3dd68c; --warn:#f5c542; --danger:#ff6b6b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    header, main { max-width: 1100px; margin: 0 auto; padding: 1rem 1.2rem; }
+    header { padding-top: 1.4rem; }
+    h1 { margin: 0 0 .3rem; font-size: 1.4rem; }
+    .disclaimer { color: var(--warn); font-size: .92rem; }
+    .grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 1rem; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border-radius: 14px; padding: 1rem 1.1rem; }
+    .range { font-size: 4rem; font-weight: 700; letter-spacing: -2px; }
+    .unit { font-size: 1.2rem; color: var(--muted); }
+    .meta { color: var(--muted); margin-top: .4rem; }
+    .level-none, .level-off, .level-info { color: var(--ok); }
+    .level-warn { color: var(--warn); }
+    .level-danger { color: var(--danger); }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: .35rem 0; border-bottom: 1px solid #2a3848; }
+    .pipe { display: flex; gap: .4rem; flex-wrap: wrap; margin: .6rem 0 0; }
+    .pipe span { background: #243140; border-radius: 999px; padding: .2rem .6rem; font-size: .8rem; color: var(--muted); }
+    svg { width: 100%; height: 140px; background: #121a24; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>mmDistance — khoảng cách xe phía trước</h1>
+    <p class="disclaimer">PoC tham khảo. Không phải ACC/AEB. Không nối phanh/ga. Không vừa lái vừa nhìn màn hình.</p>
+  </header>
+  <main>
+    <div class="grid">
+      <section class="card">
+        <div class="meta">Primary track</div>
+        <div class="range"><span id="range">—</span><span class="unit"> m</span></div>
+        <div id="alert" class="level-none">Đang chờ frame…</div>
+        <div class="meta" id="detail"></div>
+        <div class="pipe">
+          <span id="raw">raw —</span>
+          <span id="filtered">lọc —</span>
+          <span id="clusters">cluster —</span>
+          <span id="tracks">track —</span>
+          <span id="fps">fps —</span>
+        </div>
+      </section>
+      <section class="card">
+        <div class="meta">Range theo thời gian (history)</div>
+        <svg id="chart" viewBox="0 0 300 100" preserveAspectRatio="none"></svg>
+        <p class="meta">Lọc góc chỉ vứt điểm ngoài làn — SNR/tầm không tăng. AOP vẫn là radar cabin 60 GHz.</p>
+      </section>
+    </div>
+    <section class="card" style="margin-top:1rem">
+      <div class="meta">Tracks</div>
+      <table>
+        <thead><tr><th>id</th><th>range</th><th>vr</th><th>az</th><th>hits</th><th>static</th><th>primary</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    async function tick() {
+      const res = await fetch("/api/history");
+      const data = await res.json();
+      const latest = data.latest;
+      if (!latest) return;
+      const p = latest.primary;
+      $("range").textContent = p ? p.range_m.toFixed(1) : "—";
+      const alert = latest.alert || {level:"none", message:"—"};
+      $("alert").className = "level-" + alert.level;
+      $("alert").textContent = alert.message;
+      $("detail").textContent = p
+        ? `vr ${p.vr.toFixed(2)} m/s · az ${p.azimuth_deg.toFixed(1)}° · snr ${p.snr_db.toFixed(1)} dB · frame ${latest.frame}`
+        : `frame ${latest.frame} · chưa khóa mục tiêu`;
+      $("raw").textContent = "raw " + latest.n_raw;
+      $("filtered").textContent = "lọc " + latest.n_filtered;
+      $("clusters").textContent = "cluster " + latest.n_clusters;
+      $("tracks").textContent = "track " + latest.n_tracks;
+      $("fps").textContent = "fps " + ((latest.health && latest.health.fps) || 0);
+      const rows = (latest.tracks || []).map(t => `<tr>
+        <td>${t.id}</td><td>${t.range_m.toFixed(2)}</td><td>${t.vr.toFixed(2)}</td>
+        <td>${t.azimuth_deg.toFixed(1)}</td><td>${t.hits}</td>
+        <td>${t.static ? "tĩnh" : ""}</td>
+        <td>${p && p.id === t.id ? "●" : ""}</td>
+      </tr>`).join("");
+      $("rows").innerHTML = rows || "<tr><td colspan=7>Không có track</td></tr>";
+      draw(data.history || []);
+    }
+    function draw(history) {
+      const vals = history.map(h => h.primary && h.primary.range_m).filter(v => v != null);
+      const svg = $("chart");
+      if (vals.length < 2) { svg.innerHTML = ""; return; }
+      const min = Math.min(...vals), max = Math.max(...vals), span = Math.max(max - min, 0.1);
+      const pts = vals.map((v, i) => {
+        const x = i * 300 / (vals.length - 1);
+        const y = 90 - (v - min) / span * 80;
+        return x.toFixed(1) + "," + y.toFixed(1);
+      }).join(" ");
+      svg.innerHTML = `<polyline fill="none" stroke="#3dd68c" stroke-width="2" points="${pts}"/>`;
+    }
+    tick();
+    setInterval(tick, 250);
+  </script>
+</body>
+</html>

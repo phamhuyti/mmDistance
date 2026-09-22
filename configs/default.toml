@@ -1,4 +1,5 @@
 # Runtime gates and I/O. Chirp timing itself lives in the radar .cfg, not here.
+# Chạy từ thư mục gốc repo: python3 -m mmdistance --config configs/default.toml simulate
 
 [radar]
 cli_port = "/dev/radar-cli"
@@ -7,6 +8,8 @@ cli_baud = 115200
 data_baud = 921600
 cfg_path = "configs/profile.cfg.example"
 cfg_line_timeout_s = 0.4
+wait_port_s = 20.0
+stale_after_s = 2.0
 
 [filter]
 # Software lane only — AOP FoV stays ~120°. This does not raise SNR/range.
@@ -33,11 +36,28 @@ meas_var_vr = 0.5
 default_dt = 0.05
 
 [ego]
-# Set to vehicle speed (m/s) when a GPS/IMU feed exists. 0 = static / parking-lot tests.
+# 0 = test tĩnh/bãi. Khi chạy xe, ghi m/s vào speed_file (GPS/IMU).
 speed_mps = 0.0
 static_vr_tol_mps = 0.8
+speed_file = ""
+
+[mount]
+# Góc board so với xe. yaw>0 = aimed sang phải; pitch>0 = ngẩng lên.
+yaw_deg = 0.0
+pitch_deg = 0.0
+roll_deg = 0.0
+height_m = 0.4
+
+[alert]
+# Chỉ LED/log. Không được nối phanh/ga.
+enabled = true
+warn_range_m = 12.0
+danger_range_m = 6.0
+gpio_warn_pin = 0
+gpio_danger_pin = 0
 
 [output]
 csv_path = ""
 jsonl_path = ""
+sqlite_path = ""
 print_primary = true

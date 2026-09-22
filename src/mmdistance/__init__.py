@@ -9,4 +9,4 @@ __all__ = [
     "RadarFrame",
     "Track",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"
