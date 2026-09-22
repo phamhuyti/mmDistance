@@ -1,0 +1,8 @@
+# Stable names for the Silicon Labs dual-UART bridge used by AWR6843AOPEVM
+# in standalone USB mode. Confirm vendor/product/interface with:
+#   udevadm info -a -n /dev/ttyUSB0
+#
+# Interface 00 is usually CLI (115200), 01 is Data (921600). Swap if needed.
+
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea70", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="radar-cli"
+SUBSYSTEM=="tty", ATTRS{idProduct}=="ea70", ATTRS{idVendor}=="10c4", ENV{ID_USB_INTERFACE_NUM}=="01", SYMLINK+="radar-data"

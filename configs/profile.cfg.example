@@ -1,0 +1,29 @@
+% Copy this file to configs/profile.cfg and paste a chirp block exported from
+% TI mmWave Sensing Estimator + Demo Visualizer.
+%
+% Do not use the in-cabin occupancy profile (~2.7 m, vmax ~1.7 m/s).
+% Front-range PoC targets (then measure; AOP gain will likely miss them):
+%   Rmax  20-40 m
+%   vmax  20-30 m/s relative
+%   dR    0.2-0.4 m
+%   rate  10-20 Hz
+%
+% UART: CLI 115200, Data 921600. The Pi sends this file on every boot.
+% Keep the UART thin — objects + SNR only, no heatmaps:
+%   guiMonitor -1 2 0 0 0 0 0
+
+sensorStop
+flushCfg
+dfeDataOutputMode 1
+
+% ==== paste Estimator / Visualizer lines below (profileCfg, chirpCfg, frameCfg, ...) ====
+% profileCfg ...
+% chirpCfg ...
+% frameCfg ...
+% cfarCfg ...
+% aoaFovCfg ...
+% cfarFovCfg ...
+% ==== end paste ====
+
+guiMonitor -1 2 0 0 0 0 0
+sensorStart
